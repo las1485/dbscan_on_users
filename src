@@ -1,0 +1,353 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# # TRABALHO DE ML SOBRE DBSCAN CLUSTERING
+
+# ### 1. Obtendo latitudes e longitudes dos casastros
+# Nesta etapa iremos acessar a API do Googlemaps e, a partir de informações de endereço de cada cadastro da empresa SurfConnect, descobrir a sua posição geográfica (através da latitude e longitude). A API a ser usada é a Geocoding API. Para isso, é necessário gerar uma chave que será usada para fazer as requisições à API. Documentação: https://developers.google.com/maps/documentation/geocoding/start#get-a-key
+# 
+# Esta posição geográfica será posteriormente utilizada para plotar a localização de cada usuário cadastrado no SurfConnect no mapa do Rio de Janeiro.
+
+# In[1]:
+
+
+import re
+import html
+import googlemaps
+import numpy as np
+import pandas as pd
+from datetime import datetime
+
+
+# ### 2. Georrefenciando os cadastros no folium
+# 
+# Após utilizarmos o pacote gmaps para obter a latitude e longitude dos cadastros da SurfConnect, agora é etapa de visualizar estes cadastros no mapa do Rio de Janeiro, para futuramente, agregá-las por regiões mais próximas, na etapa de clusterização dos dados. 
+# 
+
+# In[2]:
+
+
+import folium
+
+
+# In[3]:
+
+
+# Par (latitude, longitude) média do município do RJ
+latitude_media, longitude_media = -22.90, -43.34
+
+
+# In[37]:
+
+
+# Abrindo todas as unidades de saúde do município do RJ, com suas devidas localizações (lat, long)
+df = pd.read_csv('cadastros_com_lat_lon-2.csv', sep=';')
+
+print (len(df))
+
+# Removendo cadastros cujos (lat, long) são "nan"
+df = df[np.isfinite(df['lat'])]
+print (len(df))
+
+#df = df[(df['address_state']=='RJ') | (df['address_city']=='Rio de Janeiro') | (df['address_city']=='rio de janeiro') | (df['address_city']=='rio') | (df['address_city']=='RJ')]
+
+df = df[df['address_city']=='Rio de Janeiro']
+
+print (len(df))
+
+df
+
+
+# In[38]:
+
+
+df.shape
+
+
+# ### 3. Usando o DBSCAN para agrupar os cadastros
+
+# In[39]:
+
+
+from sklearn.cluster import DBSCAN
+from sklearn.preprocessing import StandardScaler
+
+
+# In[40]:
+
+
+data_2d = df[['lat','lon']]
+
+
+# # TEST 1
+
+# In[66]:
+
+
+db = DBSCAN(eps=0.01, min_samples=10).fit(data_2d)
+
+
+# In[67]:
+
+
+core_samples_mask = np.zeros_like(db.labels_, dtype=bool)
+core_samples_mask[db.core_sample_indices_] = True
+labels = db.labels_
+
+
+# In[68]:
+
+
+labels
+
+
+# In[69]:
+
+
+df['cluster dbscan'] = labels
+
+# Number of clusters in labels, ignoring noise if present.
+n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
+
+
+# In[70]:
+
+
+df['cluster dbscan'].value_counts()
+
+
+# In[71]:
+
+
+df_g0 = df[df['cluster dbscan']==0]
+df_g1 = df[df['cluster dbscan']==1]
+df_g2 = df[df['cluster dbscan']==2]
+df_g3 = df[df['cluster dbscan']==3]
+df_g4 = df[df['cluster dbscan']==4]
+df_gOut = df[df['cluster dbscan']==-1]
+
+
+surf_map = folium.Map(location=[latitude_media, longitude_media], zoom_start=7)
+
+
+for lat, lng, in zip(df_g0.lat, df_g0.lon):
+    folium.CircleMarker(
+        [lat, lng],
+        radius=6, 
+        color='blue',
+        fill=True,
+        fill_opacity=0.6
+    ).add_to(surf_map)
+
+for lat, lng, in zip(df_g1.lat, df_g1.lon):
+    folium.CircleMarker(
+        [lat, lng],
+        radius=6, 
+        color='red',
+        fill=True,
+        fill_opacity=0.6
+    ).add_to(surf_map)  
+    
+for lat, lng, in zip(df_g2.lat, df_g2.lon):
+    folium.CircleMarker(
+        [lat, lng],
+        radius=6, 
+        color='green',
+        fill=True,
+        fill_opacity=0.6
+    ).add_to(surf_map) 
+
+for lat, lng, in zip(df_g3.lat, df_g3.lon):
+    folium.CircleMarker(
+        [lat, lng],
+        radius=6, 
+        color='orange',
+        fill=True,
+        fill_opacity=0.6
+    ).add_to(surf_map)
+
+for lat, lng, in zip(df_g4.lat, df_g4.lon):
+    folium.CircleMarker(
+        [lat, lng],
+        radius=6, 
+        color='purple',
+        fill=True,
+        fill_opacity=0.6
+    ).add_to(surf_map)
+
+for lat, lng, in zip(df_gOut.lat, df_gOut.lon):
+    folium.CircleMarker(
+        [lat, lng],
+        radius=6, 
+        color='black',
+        fill=True,
+        fill_opacity=0.6
+    ).add_to(surf_map)
+    
+    
+surf_map
+
+
+
+# In[47]:
+
+
+from sklearn import metrics
+print("Silhouette Coefficient: %0.3f" % metrics.silhouette_score(data_2d, labels))
+
+
+# # TEST 2
+
+# In[35]:
+
+
+db = DBSCAN(eps=0.01, min_samples=10).fit(data_2d)
+
+
+core_samples_mask = np.zeros_like(db.labels_, dtype=bool)
+core_samples_mask[db.core_sample_indices_] = True
+labels = db.labels_
+df['cluster dbscan'] = labels
+
+# Number of clusters in labels, ignoring noise if present.
+n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
+df['cluster dbscan'].value_counts()
+
+
+# In[36]:
+
+
+df_g0 = df[df['cluster dbscan']==0]
+df_g1 = df[df['cluster dbscan']==1]
+df_g2 = df[df['cluster dbscan']==2]
+df_g3 = df[df['cluster dbscan']==3]
+df_g4 = df[df['cluster dbscan']==4]
+df_gOut = df[df['cluster dbscan']==-1]
+
+
+surf_map2 = folium.Map(location=[latitude_media, longitude_media], zoom_start=5)
+
+
+for lat, lng, in zip(df_g0.lat, df_g0.lon):
+    folium.CircleMarker(
+        [lat, lng],
+        radius=6, 
+        color='blue',
+        fill=True,
+        fill_opacity=0.6
+    ).add_to(surf_map2)
+
+for lat, lng, in zip(df_g1.lat, df_g1.lon):
+    folium.CircleMarker(
+        [lat, lng],
+        radius=6, 
+        color='red',
+        fill=True,
+        fill_opacity=0.6
+    ).add_to(surf_map2)  
+    
+for lat, lng, in zip(df_g2.lat, df_g2.lon):
+    folium.CircleMarker(
+        [lat, lng],
+        radius=6, 
+        color='green',
+        fill=True,
+        fill_opacity=0.6
+    ).add_to(surf_map2) 
+
+for lat, lng, in zip(df_g3.lat, df_g3.lon):
+    folium.CircleMarker(
+        [lat, lng],
+        radius=6, 
+        color='orange',
+        fill=True,
+        fill_opacity=0.6
+    ).add_to(surf_map2)
+
+for lat, lng, in zip(df_g4.lat, df_g4.lon):
+    folium.CircleMarker(
+        [lat, lng],
+        radius=6, 
+        color='purple',
+        fill=True,
+        fill_opacity=0.6
+    ).add_to(surf_map2)
+
+for lat, lng, in zip(df_gOut.lat, df_gOut.lon):
+    folium.CircleMarker(
+        [lat, lng],
+        radius=6, 
+        color='black',
+        fill=True,
+        fill_opacity=0.6
+    ).add_to(surf_map2)
+    
+    
+surf_map2
+
+
+# In[37]:
+
+
+from sklearn import metrics
+print("Silhouette Coefficient: %0.3f" % metrics.silhouette_score(data_2d, labels))
+
+
+# # TEST 3
+
+# In[18]:
+
+
+db = DBSCAN(eps=0.80, min_samples=20).fit(data_2d)
+
+
+core_samples_mask = np.zeros_like(db.labels_, dtype=bool)
+core_samples_mask[db.core_sample_indices_] = True
+labels = db.labels_
+df['cluster dbscan'] = labels
+
+# Number of clusters in labels, ignoring noise if present.
+n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
+df['cluster dbscan'].value_counts()
+
+
+# In[19]:
+
+
+df_g0 = df[df['cluster dbscan']==0]
+df_gOut = df[df['cluster dbscan']==-1]
+
+
+surf_map3 = folium.Map(location=[latitude_media, longitude_media], zoom_start=6)
+
+
+for lat, lng, in zip(df_g0.lat, df_g0.lon):
+    folium.CircleMarker(
+        [lat, lng],
+        radius=6, 
+        color='blue',
+        fill=True,
+        fill_opacity=0.6
+    ).add_to(surf_map3)
+
+
+
+for lat, lng, in zip(df_gOut.lat, df_gOut.lon):
+    folium.CircleMarker(
+        [lat, lng],
+        radius=6, 
+        color='black',
+        fill=True,
+        fill_opacity=0.6
+    ).add_to(surf_map3)
+    
+    
+surf_map3
+
+
+# In[93]:
+
+
+from sklearn import metrics
+print("Silhouette Coefficient: %0.3f" % metrics.silhouette_score(data_2d, labels))
+
